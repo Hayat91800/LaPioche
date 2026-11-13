@@ -7,6 +7,8 @@ struct LoanController: RouteCollection {
         loans.post(use: create)
     }
 
+    // Fonction permettant de faire un emprunt en verifiant que le jeu ou l'adherant existe bien.
+    // Rien n'est mis en place pour s'assurer de la disponibilité du jeu
     @Sendable
     func create(req: Request) async throws -> Response {
         let dto = try req.content.decode(CreateLoanDTO.self)

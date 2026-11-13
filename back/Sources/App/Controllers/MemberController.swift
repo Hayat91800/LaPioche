@@ -9,11 +9,13 @@ struct MemberController: RouteCollection {
         members.get(":memberID", use: show)
     }
 
+    // Fonction qui affiche la liste des adherants
     @Sendable
     func index(req: Request) async throws -> [MemberDTO] {
         try await Member.query(on: req.db).all().map { $0.toDTO() }
     }
 
+    // Fonction qui permet de créer un adherant en verifiant les validation du dto sur name et email (unicité).
     @Sendable
     func create(req: Request) async throws -> Response {
         try CreateMemberDTO.validate(content: req)
@@ -31,6 +33,7 @@ struct MemberController: RouteCollection {
         return try await member.toDTO().encodeResponse(status: .created, for: req)
     }
 
+    // Fonction qui permet d'afficher les infos d'un utilisatuer via son id
     @Sendable
     func show(req: Request) async throws -> MemberDTO {
         guard let memberID = req.parameters.get("memberID", as: UUID.self) else {
