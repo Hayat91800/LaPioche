@@ -46,7 +46,7 @@ struct GameController: RouteCollection {
             .with(\.$loans)
             .first()
         else {
-            throw Abort(.internalServerError, reason: "Game not found")
+            throw Abort(.notFound, reason: "Game not found")
         }
         return game
     }
