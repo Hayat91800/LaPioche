@@ -105,4 +105,114 @@ final class GameTests: XCTestCase {
             })
         }
     }
+    
+    func testUpdateGameReturnsOk() async throws {
+            try await withApp { app in
+                let game = try await createGame(app, title: "Catan")
+                let id = try XCTUnwrap(game.id)
+
+                try await app.test(.PUT, "games/\(id)", beforeRequest: { req in
+                    try req.content.encode(CreateGameDTO(
+                        title: "Catan - Édition Deluxe", minPlayers: 3, maxPlayers: 4, durationMinutes: 120
+                    ))
+                }, afterResponse: { res async throws in
+                    XCTAssertEqual(res.status, .ok)
+                    let updatedGame = try res.content.decode(GameDTO.self)
+                    XCTAssertEqual(updatedGame.title, "Catan - Édition Deluxe")
+                    XCTAssertEqual(updatedGame.durationMinutes, 120)
+                })
+            }
+        }
+
+        func testUpdateGameWithEmptyTitleIsRejected() async throws {
+            try await withApp { app in
+                let game = try await createGame(app)
+                let id = try XCTUnwrap(game.id)
+
+                try await app.test(.PUT, "games/\(id)", beforeRequest: { req in
+                    try req.content.encode(CreateGameDTO(
+                        title: "", minPlayers: 3, maxPlayers: 4, durationMinutes: 90
+                    ))
+                }, afterResponse: { res async throws in
+                    XCTAssertEqual(res.status, .badRequest)
+                })
+            }
+        }
+
+        func testUpdateGameWithInvertedPlayerBoundsIsRejected() async throws {
+            try await withApp { app in
+                let game = try await createGame(app)
+                let id = try XCTUnwrap(game.id)
+
+                try await app.test(.PUT, "games/\(id)", beforeRequest: { req in
+                    try req.content.encode(CreateGameDTO(
+                        title: "Catan", minPlayers: 6, maxPlayers: 2, durationMinutes: 90
+                    ))
+                }, afterResponse: { res async throws in
+                    XCTAssertEqual(res.status, .badRequest)
+                })
+            }
+        }
+
+        func testUpdateUnknownGameReturnsNotFound() async throws {
+            try await withApp { app in
+                try await app.test(.PUT, "games/\(UUID())", beforeRequest: { req in
+                    try req.content.encode(CreateGameDTO(
+                        title: "Catan", minPlayers: 3, maxPlayers: 4, durationMinutes: 90
+                    ))
+                }, afterResponse: { res async throws in
+                    XCTAssertEqual(res.status, .notFound)
+                })
+            }
+        }
+
+        func testUpdateGameWithMalformedIDReturnsBadRequest() async throws {
+            try await withApp { app in
+                try await app.test(.PUT, "games/not-a-uuid", beforeRequest: { req in
+                    try req.content.encode(CreateGameDTO(
+                        title: "Catan", minPlayers: 3, maxPlayers: 4, durationMinutes: 90
+                    ))
+                }, afterResponse: { res async throws in
+                    XCTAssertEqual(res.status, .badRequest)
+                })
+            }
+        }
+    
+    func testDeleteGameReturnsNoContent() async throws {
+            try await withApp { app in
+                let game = try await createGame(app)
+                let id = try XCTUnwrap(game.id)
+
+                try await app.test(.DELETE, "games/\(id)", afterResponse: { res async throws in
+                    XCTAssertEqual(res.status, .noContent)
+                })
+            }
+        }
+
+        func testDeleteUnknownGameReturnsNotFound() async throws {
+            try await withApp { app in
+                try await app.test(.DELETE, "games/\(UUID())", afterResponse: { res async throws in
+                    XCTAssertEqual(res.status, .notFound)
+                })
+            }
+        }
+
+        func testDeleteGameWithLoansReturnsConflict() async throws {
+            try await withApp { app in
+                let game = try await createGame(app)
+                let gameID = try XCTUnwrap(game.id)
+                let member = try await createMember(app)
+                let memberID = try XCTUnwrap(member.id)
+
+                try await app.test(.POST, "loans", beforeRequest: { req in
+                    try req.content.encode(CreateLoanDTO(gameID: gameID, memberID: memberID))
+                }, afterResponse: { res async throws in
+                    XCTAssertEqual(res.status, .created)
+                })
+
+                try await app.test(.DELETE, "games/\(gameID)", afterResponse: { res async throws in
+                    XCTAssertEqual(res.status, .conflict)
+                })
+            }
+        }
 }

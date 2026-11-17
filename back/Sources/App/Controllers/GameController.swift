@@ -7,6 +7,8 @@ struct GameController: RouteCollection {
         games.get(use: index)
         games.post(use: create)
         games.get(":gameID", use: show)
+        games.put(":gameID", use: update)
+        games.delete(":gameID", use: delete)
     }
 
     // Affiche la liste des jeux et indique leur disponibilité
@@ -50,4 +52,40 @@ struct GameController: RouteCollection {
         }
         return game
     }
+    
+    // Fonction qui modifie les informations dun jeu
+    @Sendable
+    func update(req: Request) async throws -> Response {
+
+        try CreateGameDTO.validate(content: req)
+        let dto = try req.content.decode(CreateGameDTO.self)
+        try dto.ensureConsistentPlayerCount()
+        
+        // Gere automatiquement  les erreurs 400 et 404 dans la recherche du jeu
+        let game = try await findGame(req)
+
+        game.title = dto.title
+        game.minPlayers = dto.minPlayers
+        game.maxPlayers = dto.maxPlayers
+        game.durationMinutes = dto.durationMinutes
+        
+        try await game.update(on: req.db)
+        return try await game.toDTO().encodeResponse(status: .ok, for: req)
+    }
+    
+    // Fonction qui supprime un jeu
+    @Sendable
+    func delete(req: Request) async throws -> Response {
+        
+        let game = try await findGame(req)
+
+        if !game.loans.isEmpty {
+            throw Abort(.conflict, reason: "A game with loans cannot be deleted")
+        }
+
+        try await game.delete(on: req.db)
+
+        return Response(status: .noContent)
+    }
+    
 }
