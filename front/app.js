@@ -226,6 +226,9 @@ bindSubmit(borrowDialog, borrowForm, async (data) => {
 });
 
 // --- Adhérent·es -----------------------------------------------------------
+// Mémorise si on edite un adherents existant
+let editingMemberID = null;
+
 // Recupère et affiche liste des adherants
 async function loadMembers() {
     const members = await api.listMembers();
@@ -234,11 +237,15 @@ async function loadMembers() {
 }
 
 function memberRow(member) {
+    const actions = el("div", { class: "actions" });
+        actions.append(button("Modifier", () => openEditMemberDialog(member)));
+        actions.append(button("Supprimer", () => confirmDeleteMember(member)));
     return el(
         "li",
         { class: "row" },
-        el("div", { class: "row-main" }, el("p", {}, el("strong", {}, member.name)), el("p", { class: "meta" }, member.email)),
+        el("div", { class: "row-main" }, el("p", {}, el("strong", {}, member.name)), el("p", { class: "meta" }, member.email)), actions,
     );
+    
 }
 
 const memberDialog = $("#member-dialog");
@@ -251,9 +258,48 @@ $("#add-member").addEventListener("click", () => {
     memberDialog.showModal();
 });
 
-bindSubmit(memberDialog, memberForm, (data) =>
-    api.createMember({ name: data.get("name").trim(), email: data.get("email").trim() }),
-);
+// Ouvre la modale en mode modification et pré-remplit les champs
+function openEditMemberDialog(member) {
+    editingMemberID = member.id;
+    $("#member-dialog-title").textContent = `Modifier « ${member.name} »`;
+    
+    memberForm.elements.name.value = member.name;
+    memberForm.elements.email.value = member.email;
+    
+    showFormError(memberDialog, null);
+    memberDialog.showModal();
+}
+
+// Gère à la fois la création (POST) et la mise à jour (PUT)
+bindSubmit(memberDialog, memberForm, async (data) => {
+    const payload = {
+        name: data.get("name").trim(),
+        email: data.get("email").trim(),
+    };
+
+    if (editingMemberID) {
+        await api.updateMember(editingMemberID, payload);
+        toast(`Adhérent·e « ${payload.name} » modifié·e avec succès.`);
+    } else {
+        await api.createMember(payload);
+        toast(`Adhérent·e « ${payload.name} » créé·e avec succès.`);
+    }
+});
+
+// Boîte de dialogue de confirmation pour la suppression d'un adhérent
+async function confirmDeleteMember(member) {
+    if (confirm(`Voulez-vous vraiment supprimer l'adhérent·e « ${member.name} » ?`)) {
+        await run(async () => {
+            try {
+                await api.deleteMember(member.id);
+                toast(`Adhérent·e « ${member.name} » supprimé·e.`);
+                await refresh();
+            } catch (error) {
+                toast(error.message, true);
+            }
+        });
+    }
+}
 
 // Lance l'application dès le chargement de la page en analysant l'URL active.
 refresh();
