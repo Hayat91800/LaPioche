@@ -117,6 +117,8 @@ export const api = {
     updateMember: (id, member) => request("PUT", `/members/${id}`, member),
     deleteMember: (id) => request("DELETE", `/members/${id}`),
     
+    listLoans: () => request("GET", "/loans"),
     borrow: (gameID, memberID) => request("POST", "/loans", { gameID, memberID }),
+    returnLoan: (loanID) => request("POST", `/loans/${loanID}/return`),
     
 };

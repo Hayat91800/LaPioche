@@ -72,7 +72,6 @@ final class MemberTests: XCTestCase {
             let member = try await createMember(app)
             
             try await app.test(.DELETE, "members/\(member.id!)", afterResponse: { res async throws in
-                // Vapor retourne généralement .noContent (204) pour une suppression réussie
                 XCTAssertEqual(res.status, .noContent)
             })
         }
