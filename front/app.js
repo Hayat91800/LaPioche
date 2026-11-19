@@ -257,6 +257,7 @@ async function loadMembers() {
 
 function memberRow(member) {
     const actions = el("div", { class: "actions" });
+    actions.append(button("Emprunts", () => openMemberLoansDialog(member), "secondary"));
         actions.append(button("Modifier", () => openEditMemberDialog(member)));
         actions.append(button("Supprimer", () => confirmDeleteMember(member)));
     return el(
@@ -318,6 +319,58 @@ async function confirmDeleteMember(member) {
             }
         });
     }
+}
+
+const memberLoansDialog = $("#member-loans-dialog");
+
+async function openMemberLoansDialog(member) {
+    await run(async () => {
+        // On récupère en parallèle les prêts de l'adhérent et la liste des jeux pour afficher les titres
+        const [loans, games] = await Promise.all([
+            api.listMemberLoans(member.id),
+            api.listGames()
+        ]);
+
+        $("#member-loans-title").textContent = `Emprunts de « ${member.name} »`;
+        const container = $("#member-loans-container");
+        container.replaceChildren();
+
+        if (loans.length === 0) {
+            container.append(el("p", { class: "empty" }, "Aucun·e adhérent·e n'a d'emprunt en cours ou passé pour le moment."));
+            memberLoansDialog.showModal();
+            return;
+        }
+
+        const now = new Date();
+        const list = el("ul", { class: "cards" });
+
+        for (const loan of loans) {
+            // Retrouver le jeu par son ID pour afficher son titre (exigence : "titre du jeu, pas son identifiant")
+            const game = games.find(g => g.id === loan.gameID);
+            const gameTitle = game ? game.title : "Jeu inconnu";
+
+            // Détermination de l'état : rendu, en retard ou en cours
+            let statusBadge;
+            if (loan.returnedAt) {
+                statusBadge = el("span", { class: "badge ok" }, "Rendu");
+            } else if (new Date(loan.dueAt) < now) {
+                statusBadge = el("span", { class: "badge error" }, "En retard");
+            } else {
+                statusBadge = el("span", { class: "badge busy" }, "En cours");
+            }
+
+            const item = el(
+                "li",
+                { class: "card" },
+                el("div", { class: "card-head" }, el("h3", {}, gameTitle), statusBadge),
+                el("p", { class: "meta" }, `Emprunté le : ${formatDate(loan.borrowedAt)} · À rendre le : ${formatDate(loan.dueAt)}`)
+            );
+            list.append(item);
+        }
+
+        container.append(list);
+        memberLoansDialog.showModal();
+    });
 }
 
 // Lance l'application dès le chargement de la page en analysant l'URL active.

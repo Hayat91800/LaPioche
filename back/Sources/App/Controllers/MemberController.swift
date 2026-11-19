@@ -9,6 +9,7 @@ struct MemberController: RouteCollection {
         members.get(":memberID", use: show)
         members.put(":memberID", use: update)
         members.delete(":memberID", use: delete)
+        members.get(":memberID", "loans", use: listLoansForMember)
     }
     
     // Fonction qui affiche la liste des adherants
@@ -98,5 +99,27 @@ struct MemberController: RouteCollection {
         try await member.delete(on: req.db)
         
         return .noContent
+    }
+    
+    // Fonction qui gère les emprunts d'un adhérent
+    @Sendable
+    func listLoansForMember(req: Request) async throws -> [LoanDTO] {
+        guard let memberID = req.parameters.get("memberID", as: UUID.self) else {
+            throw Abort(.badRequest, reason: "Invalid member ID")
+        }
+        
+        guard try await Member.find(memberID, on: req.db) != nil else {
+            throw Abort(.notFound, reason: "Member not found")
+        }
+        let loans = try await Loan.query(on: req.db)
+            .filter(\.$member.$id == memberID)
+            .all()
+        
+        for loan in loans {
+            try await loan.$game.load(on: req.db)
+            try await loan.$member.load(on: req.db)
+        }
+        
+        return loans.map { $0.toDTO() }
     }
 }

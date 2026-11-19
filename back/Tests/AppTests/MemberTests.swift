@@ -84,4 +84,39 @@ final class MemberTests: XCTestCase {
             })
         }
     }
+    
+    func testListMemberLoansEmpty() async throws {
+            try await withApp { app in
+                let member = try await createMember(app)
+                let memberID = try XCTUnwrap(member.id)
+
+                try await app.test(.GET, "members/\(memberID)/loans", afterResponse: { res async throws in
+                    XCTAssertEqual(res.status, .ok)
+                    let loans = try res.content.decode([LoanDTO].self)
+                    XCTAssertTrue(loans.isEmpty)
+                })
+            }
+        }
+
+        func testListMemberLoansWithDifferentStates() async throws {
+            try await withApp { app in
+                let member = try await createMember(app)
+                let memberID = try XCTUnwrap(member.id)
+                let game = try await createGame(app)
+                let gameID = try XCTUnwrap(game.id)
+
+                try await app.test(.POST, "loans", beforeRequest: { req in
+                    try req.content.encode(CreateLoanDTO(gameID: gameID, memberID: memberID))
+                }, afterResponse: { res async throws in
+                    XCTAssertEqual(res.status, .created)
+                })
+
+                try await app.test(.GET, "members/\(memberID)/loans", afterResponse: { res async throws in
+                    XCTAssertEqual(res.status, .ok)
+                    let loans = try res.content.decode([LoanDTO].self)
+                    XCTAssertEqual(loans.count, 1)
+                    XCTAssertNil(loans.first?.returnedAt)
+                })
+            }
+        }
 }
